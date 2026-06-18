@@ -1,0 +1,31 @@
+services:
+  spark-master:
+    image: apache/spark:4.0.1
+    container_name: spark-master
+    environment:
+      - PATH=/opt/spark/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - SPARK_MODE=master
+    volumes:
+      - ./data:/data
+      - ./src:/src
+      - ./output:/output
+    working_dir: /src
+    ports:
+      - "4040:4040"
+      - "7077:7077"
+      - "8080:8080"
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master --host spark-master
+
+  spark-worker:
+    image: apache/spark:4.0.1
+    environment:
+      - PATH=/opt/spark/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - SPARK_MODE=worker
+    volumes:
+      - ./data:/data
+      - ./src:/src
+      - ./output:/output
+    working_dir: /src
+    depends_on:
+      - spark-master
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
