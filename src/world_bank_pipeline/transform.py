@@ -68,6 +68,10 @@ def keep_only_rows_with_all_identifiers(dataframe: DataFrame) -> DataFrame:
     return dataframe.filter(complete_identifier_filter)
 
 
+def keep_only_rows_with_values(dataframe: DataFrame) -> DataFrame:
+    return dataframe.filter(sf.col(VALUE_COLUMN).isNotNull())
+
+
 def convert_wide_to_long(dataframe: DataFrame) -> DataFrame:
     year_columns = get_year_columns(dataframe.columns)
     validate_input_columns(dataframe.columns, year_columns)
