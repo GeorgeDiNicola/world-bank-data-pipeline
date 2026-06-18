@@ -9,6 +9,7 @@ from src.world_bank_pipeline.transform import (
     convert_partitions_to_long_format,
     convert_wide_to_long,
     keep_only_rows_with_all_identifiers,
+    keep_only_rows_with_values,
 )
 
 
@@ -67,6 +68,24 @@ def test_convert_wide_to_long_outputs_expected_rows(spark: SparkSession) -> None
         ("AFG", 2025, None),
         ("ZWE", 2024, None),
         ("ZWE", 2025, 2.0),
+    ]
+
+
+def test_keep_only_rows_with_values_removes_missing_values(spark: SparkSession) -> None:
+    dataframe = spark.createDataFrame(
+        [
+            ("Afghanistan", "AFG", "Indicator", "TEST.CODE", 2024, 1.5),
+            ("Afghanistan", "AFG", "Indicator", "TEST.CODE", 2025, None),
+            ("Zimbabwe", "ZWE", "Indicator", "TEST.CODE", 2024, 2.0),
+        ],
+        OUTPUT_COLUMNS,
+    )
+
+    rows = keep_only_rows_with_values(dataframe).orderBy("Country Code").collect()
+
+    assert [(row["Country Code"], row["Year"], row["Value"]) for row in rows] == [
+        ("AFG", 2024, 1.5),
+        ("ZWE", 2024, 2.0),
     ]
 
 
