@@ -11,6 +11,7 @@ SERIES_NAME_COLUMN = "Series Name"
 SERIES_CODE_COLUMN = "Series Code"
 VALUE_COLUMN = "Value"
 YEAR_COLUMN = "Year"
+TOPIC_COLUMN = "Topic"
 
 IDENTIFIER_COLUMNS = [
     COUNTRY_NAME_COLUMN,
@@ -72,6 +73,27 @@ def keep_only_rows_with_values(dataframe: DataFrame) -> DataFrame:
     return dataframe.filter(sf.col(VALUE_COLUMN).isNotNull())
 
 
+def add_topics_to_long_data(dataframe: DataFrame, topic_mapping: DataFrame) -> DataFrame:
+    mapping_columns = (
+        topic_mapping.select(
+            sf.trim(sf.col("id")).alias(SERIES_CODE_COLUMN),
+            sf.trim(sf.col("topic")).alias(TOPIC_COLUMN),
+        )
+        .filter(
+            sf.col(SERIES_CODE_COLUMN).isNotNull()
+            & (sf.col(SERIES_CODE_COLUMN) != "")
+            & sf.col(TOPIC_COLUMN).isNotNull()
+            & (sf.col(TOPIC_COLUMN) != "")
+        )
+        .dropDuplicates([SERIES_CODE_COLUMN])
+    )
+
+    return dataframe.join(mapping_columns, on=SERIES_CODE_COLUMN, how="inner").select(
+        *OUTPUT_COLUMNS,
+        TOPIC_COLUMN,
+    )
+
+
 def convert_wide_to_long(dataframe: DataFrame) -> DataFrame:
     year_columns = get_year_columns(dataframe.columns)
     validate_input_columns(dataframe.columns, year_columns)
@@ -112,9 +134,7 @@ def convert_partitions_to_long_format(dataframes: Sequence[DataFrame]) -> DataFr
         long_dataframe = long_dataframe.unionByName(next_dataframe)
 
     return long_dataframe.orderBy(
-        COUNTRY_NAME_COLUMN,
         COUNTRY_CODE_COLUMN,
-        SERIES_NAME_COLUMN,
         SERIES_CODE_COLUMN,
         YEAR_COLUMN,
     )

@@ -3,6 +3,9 @@ import shutil
 from pathlib import Path
 
 from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import functions as sf
+
+from world_bank_pipeline.transform import OUTPUT_COLUMNS, TOPIC_COLUMN
 
 
 def get_input_paths(input_path: str) -> list[str]:
@@ -26,6 +29,16 @@ def read_world_bank_csv(spark: SparkSession, input_path: str) -> DataFrame:
 
 def read_multiple_world_bank_csvs(spark: SparkSession, input_path: str) -> list[DataFrame]:
     return [read_world_bank_csv(spark, path) for path in get_input_paths(input_path)]
+
+
+def read_indicator_topic_mapping(spark: SparkSession, mapping_path: str) -> DataFrame:
+    return (
+        spark.read.option("header", True)
+        .option("multiLine", True)
+        .option("quote", '"')
+        .option("escape", '"')
+        .csv(mapping_path)
+    )
 
 
 def write_long_csv(dataframe: DataFrame, output_path: str) -> None:
@@ -79,3 +92,24 @@ def write_single_csv(dataframe: DataFrame, output_path: str) -> None:
     finally:
         if temporary_output_directory.exists():
             shutil.rmtree(temporary_output_directory)
+
+
+def get_topic_output_path(output_directory: Path, topic: str) -> Path:
+    return output_directory / f"{topic}.csv"
+
+
+def write_topic_csvs(dataframe: DataFrame, output_directory: str) -> None:
+    """Write 1 long-format CSV file for each topic in the dataframe."""
+    output_directory_path = Path(output_directory)
+    remove_existing_output(output_directory_path)
+    output_directory_path.mkdir(parents=True, exist_ok=True)
+
+    topics = [
+        row[TOPIC_COLUMN]
+        for row in dataframe.select(TOPIC_COLUMN).distinct().orderBy(TOPIC_COLUMN).collect()
+    ]
+
+    for topic in topics:
+        topic_output_path = get_topic_output_path(output_directory_path, topic)
+        topic_dataframe = dataframe.filter(sf.col(TOPIC_COLUMN) == topic).select(*OUTPUT_COLUMNS)
+        write_single_csv(topic_dataframe, str(topic_output_path))
