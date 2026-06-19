@@ -7,6 +7,7 @@ services:
       - SPARK_MODE=master
     volumes:
       - ./data:/data
+      - ./mapping:/mapping
       - ./src:/src
       - ./output:/output
     working_dir: /src
@@ -23,6 +24,7 @@ services:
       - SPARK_MODE=worker
     volumes:
       - ./data:/data
+      - ./mapping:/mapping
       - ./src:/src
       - ./output:/output
     working_dir: /src

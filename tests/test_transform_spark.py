@@ -1,11 +1,15 @@
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 
 from pyspark.sql import SparkSession
 
+from src.world_bank_pipeline.io import write_topic_csvs
 from src.world_bank_pipeline.transform import (
     OUTPUT_COLUMNS,
+    TOPIC_COLUMN,
+    add_topics_to_long_data,
     convert_partitions_to_long_format,
     convert_wide_to_long,
     keep_only_rows_with_all_identifiers,
@@ -87,6 +91,75 @@ def test_keep_only_rows_with_values_removes_missing_values(spark: SparkSession) 
         ("AFG", 2024, 1.5),
         ("ZWE", 2024, 2.0),
     ]
+
+
+def test_add_topics_to_long_data_maps_indicators_to_topics(spark: SparkSession) -> None:
+    dataframe = spark.createDataFrame(
+        [
+            ("Afghanistan", "AFG", "Health indicator", "SP.ADO.TFRT", 2024, 1.5),
+            ("Zimbabwe", "ZWE", "Agriculture indicator", "NV.AGR.TOTL.ZS", 2024, 2.0),
+            ("Canada", "CAN", "Unmapped indicator", "UNMAPPED", 2024, 3.0),
+        ],
+        OUTPUT_COLUMNS,
+    )
+    topic_mapping = spark.createDataFrame(
+        [
+            ("SP.ADO.TFRT", "Health"),
+            ("NV.AGR.TOTL.ZS", "Agriculture & Rural Development"),
+        ],
+        ["id", "topic"],
+    )
+
+    rows = add_topics_to_long_data(dataframe, topic_mapping).orderBy(TOPIC_COLUMN).collect()
+
+    assert add_topics_to_long_data(dataframe, topic_mapping).columns == [
+        *OUTPUT_COLUMNS,
+        TOPIC_COLUMN,
+    ]
+    assert [(row["Series Code"], row[TOPIC_COLUMN]) for row in rows] == [
+        ("NV.AGR.TOTL.ZS", "Agriculture & Rural Development"),
+        ("SP.ADO.TFRT", "Health"),
+    ]
+
+
+def test_write_topic_csvs_creates_one_csv_file_per_topic(
+    spark: SparkSession,
+    tmp_path: Path,
+) -> None:
+    dataframe = spark.createDataFrame(
+        [
+            (
+                "Afghanistan",
+                "AFG",
+                "Health indicator",
+                "SP.ADO.TFRT",
+                2024,
+                1.5,
+                "Health"
+            ),
+            (
+                "Zimbabwe",
+                "ZWE",
+                "Agriculture indicator",
+                "NV.AGR.TOTL.ZS",
+                2024,
+                2.0,
+                "Agriculture & Rural Development",
+            ),
+        ],
+        [*OUTPUT_COLUMNS, TOPIC_COLUMN],
+    )
+
+    output_directory = tmp_path / "topics"
+    write_topic_csvs(dataframe, str(output_directory))
+
+    health_output = output_directory / "Health.csv"
+    agriculture_output = output_directory / "Agriculture & Rural Development.csv"
+    assert health_output.exists()
+    assert agriculture_output.exists()
+    health_content = health_output.read_text()
+    assert "SP.ADO.TFRT" in health_content
+    assert "NV.AGR.TOTL.ZS" not in health_content
 
 
 def test_convert_partitions_to_long_unions_partition_years(spark: SparkSession) -> None:

@@ -4,6 +4,7 @@ import pytest
 
 from src.world_bank_pipeline.io import (
     get_single_part_file,
+    get_topic_output_path,
     remove_existing_output,
 )
 
@@ -56,3 +57,9 @@ def test_get_single_part_file_requires_exactly_one_part_file(tmp_path: Path) -> 
 
     with pytest.raises(RuntimeError):
         get_single_part_file(tmp_path)
+
+
+def test_get_topic_output_path_uses_topic_name_as_csv_file(tmp_path: Path) -> None:
+    output_path = get_topic_output_path(tmp_path, "Health")
+
+    assert output_path == tmp_path / "Health.csv"
