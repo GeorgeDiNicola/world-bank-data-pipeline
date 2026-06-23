@@ -1,6 +1,6 @@
 PROJECT_NAME=world-bank-data-pipeline
 PYTHON := $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
-SPARK_MASTER_URL=spark://spark-master:7077
+SPARK_MASTER_URL ?= spark://spark-master:7077
 WORKERS := $(if $(filter-out run,$(MAKECMDGOALS)),$(filter-out run,$(MAKECMDGOALS)),3)
 
 .PHONY: install run test test-coverage stop
