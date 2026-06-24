@@ -1,16 +1,22 @@
-import csv
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
 from pyspark.sql import SparkSession
+from pyspark.sql.types import (
+    DoubleType,
+    IntegerType,
+    StringType,
+    StructField,
+    StructType,
+)
 
 from world_bank_pipeline.io import (
-    read_world_bank_long_csv,
-    write_topic_indicator_column_csvs,
-    write_topic_csvs,
-    write_topic_wide_csvs,
+    read_world_bank_long_parquet,
+    write_indicator_wide_parquet_dataset,
+    write_long_parquet_dataset,
+    write_year_wide_parquet_dataset,
 )
 from world_bank_pipeline.transform import (
     COUNTRY_CODE_COLUMN,
@@ -27,9 +33,11 @@ from world_bank_pipeline.transform import (
 )
 
 
-def read_csv_rows(output_file: Path) -> list[dict[str, str]]:
-    with output_file.open(newline="", encoding="utf-8") as csv_file:
-        return list(csv.DictReader(csv_file))
+def read_parquet_rows(
+    spark: SparkSession,
+    output_directory: Path,
+) -> list[dict[str, object]]:
+    return [row.asDict() for row in spark.read.parquet(str(output_directory)).collect()]
 
 
 @pytest.fixture(scope="session")
@@ -91,70 +99,133 @@ def test_keep_only_countries_and_territories_removes_aggregate_economies(
     ]
 
 
-def test_read_world_bank_long_csv_reads_api_output_as_long_dataframe(
+def test_read_world_bank_long_parquet_reads_api_output_as_long_dataframe(
     spark: SparkSession,
     tmp_path: Path,
 ) -> None:
-    input_file = tmp_path / "world_bank_api_indicator_data.csv"
-    input_file.write_text(
-        "Series Code,Series Name,Country Code,Country Name,Year,Value\n"
-        " SP.ADO.TFRT ,Adolescent fertility rate, ARG , Argentina ,2023,26.414\n"
-        "NY.GDP.MKTP.CD,GDP,BRA,Brazil,2022,\n",
-        encoding="utf-8",
-    )
+    input_path = tmp_path / "world_bank_api_indicator_data.parquet"
+    spark.createDataFrame(
+        [
+            (" Argentina ", " ARG ", "Adolescent fertility rate", " SP.ADO.TFRT ", 2023, 26.414),
+            ("Brazil", "BRA", "GDP", "NY.GDP.MKTP.CD", 2022, None),
+        ],
+        OUTPUT_COLUMNS,
+    ).write.parquet(str(input_path))
 
-    rows = read_world_bank_long_csv(spark, str(input_file)).orderBy("Country Code").collect()
+    rows = read_world_bank_long_parquet(spark, input_path).orderBy("Country Code").collect()
 
-    assert read_world_bank_long_csv(spark, str(input_file)).columns == OUTPUT_COLUMNS
+    assert read_world_bank_long_parquet(spark, input_path).columns == OUTPUT_COLUMNS
     assert [(row["Country Code"], row["Year"], row["Value"]) for row in rows] == [
         ("ARG", 2023, 26.414),
         ("BRA", 2022, None),
     ]
 
 
-def test_read_world_bank_long_csv_rejects_missing_required_columns(
+def test_read_world_bank_long_parquet_rejects_missing_required_columns(
     spark: SparkSession,
     tmp_path: Path,
 ) -> None:
-    input_file = tmp_path / "world_bank_api_indicator_data.csv"
-    input_file.write_text(
-        "Series Code,Series Name,Country Code,Country Name,Year\n"
-        "SP.ADO.TFRT,Adolescent fertility rate,ARG,Argentina,2023\n",
-        encoding="utf-8",
-    )
+    input_path = tmp_path / "world_bank_api_indicator_data.parquet"
+    spark.createDataFrame(
+        [("SP.ADO.TFRT", "Adolescent fertility rate", "ARG", "Argentina", 2023)],
+        [
+            SERIES_CODE_COLUMN,
+            SERIES_NAME_COLUMN,
+            COUNTRY_CODE_COLUMN,
+            COUNTRY_NAME_COLUMN,
+            "Year",
+        ],
+    ).write.parquet(str(input_path))
 
     with pytest.raises(ValueError, match="missing required columns: Value"):
-        read_world_bank_long_csv(spark, input_file)
+        read_world_bank_long_parquet(spark, input_path)
 
 
-def test_read_world_bank_long_csv_rejects_invalid_years(
+def test_read_world_bank_long_parquet_rejects_invalid_years(
     spark: SparkSession,
     tmp_path: Path,
 ) -> None:
-    input_file = tmp_path / "world_bank_api_indicator_data.csv"
-    input_file.write_text(
-        "Series Code,Series Name,Country Code,Country Name,Year,Value\n"
-        "SP.ADO.TFRT,Adolescent fertility rate,ARG,Argentina,not-a-year,26.414\n",
-        encoding="utf-8",
+    input_path = tmp_path / "world_bank_api_indicator_data.parquet"
+    schema = StructType(
+        [
+            StructField(SERIES_CODE_COLUMN, StringType()),
+            StructField(SERIES_NAME_COLUMN, StringType()),
+            StructField(COUNTRY_CODE_COLUMN, StringType()),
+            StructField(COUNTRY_NAME_COLUMN, StringType()),
+            StructField("Year", StringType()),
+            StructField("Value", DoubleType()),
+        ],
     )
+    spark.createDataFrame(
+        [("SP.ADO.TFRT", "Adolescent fertility rate", "ARG", "Argentina", "not-a-year", 26.414)],
+        schema,
+    ).write.parquet(str(input_path))
 
     with pytest.raises(ValueError, match="invalid years"):
-        read_world_bank_long_csv(spark, input_file)
+        read_world_bank_long_parquet(spark, input_path)
 
 
-def test_read_world_bank_long_csv_rejects_non_numeric_values(
+def test_read_world_bank_long_parquet_rejects_non_numeric_values(
     spark: SparkSession,
     tmp_path: Path,
 ) -> None:
-    input_file = tmp_path / "world_bank_api_indicator_data.csv"
-    input_file.write_text(
-        "Series Code,Series Name,Country Code,Country Name,Year,Value\n"
-        "SP.ADO.TFRT,Adolescent fertility rate,ARG,Argentina,2023,not-a-number\n",
-        encoding="utf-8",
+    input_path = tmp_path / "world_bank_api_indicator_data.parquet"
+    schema = StructType(
+        [
+            StructField(SERIES_CODE_COLUMN, StringType()),
+            StructField(SERIES_NAME_COLUMN, StringType()),
+            StructField(COUNTRY_CODE_COLUMN, StringType()),
+            StructField(COUNTRY_NAME_COLUMN, StringType()),
+            StructField("Year", IntegerType()),
+            StructField("Value", StringType()),
+        ],
     )
+    spark.createDataFrame(
+        [("SP.ADO.TFRT", "Adolescent fertility rate", "ARG", "Argentina", 2023, "not-a-number")],
+        schema,
+    ).write.parquet(str(input_path))
 
     with pytest.raises(ValueError, match="non-numeric values"):
-        read_world_bank_long_csv(spark, input_file)
+        read_world_bank_long_parquet(spark, input_path)
+
+
+def test_read_world_bank_long_parquet_allows_null_values(
+    spark: SparkSession,
+    tmp_path: Path,
+) -> None:
+    input_path = tmp_path / "world_bank_api_indicator_data.parquet"
+    schema = StructType(
+        [
+            StructField(SERIES_CODE_COLUMN, StringType()),
+            StructField(SERIES_NAME_COLUMN, StringType()),
+            StructField(COUNTRY_CODE_COLUMN, StringType()),
+            StructField(COUNTRY_NAME_COLUMN, StringType()),
+            StructField("Year", IntegerType()),
+            StructField("Value", DoubleType()),
+        ],
+    )
+    spark.createDataFrame(
+        [("SP.ADO.TFRT", "Adolescent fertility rate", "ARG", "Argentina", 2023, None)],
+        schema,
+    ).write.parquet(str(input_path))
+
+    rows = read_world_bank_long_parquet(spark, input_path).collect()
+
+    assert [(row["Year"], row["Value"]) for row in rows] == [(2023, None)]
+
+
+def test_read_world_bank_long_parquet_rejects_missing_text_values(
+    spark: SparkSession,
+    tmp_path: Path,
+) -> None:
+    input_path = tmp_path / "world_bank_api_indicator_data.parquet"
+    spark.createDataFrame(
+        [("Argentina", "ARG", "Adolescent fertility rate", "", 2023, 26.414)],
+        OUTPUT_COLUMNS,
+    ).write.parquet(str(input_path))
+
+    with pytest.raises(ValueError, match="missing country or series identifiers"):
+        read_world_bank_long_parquet(spark, input_path)
 
 
 def test_add_topics_to_long_data_maps_indicators_to_topics(spark: SparkSession) -> None:
@@ -235,6 +306,36 @@ def test_convert_long_to_indicator_columns_uses_indicator_columns(spark: SparkSe
     ]
 
 
+def test_convert_long_to_indicator_columns_preserves_topic_rows(
+    spark: SparkSession,
+) -> None:
+    dataframe = spark.createDataFrame(
+        [
+            ("Argentina", "ARG", "GDP per capita", "NY.GDP.PCAP.CD", 2023, 2.0, "Economy"),
+            ("Argentina", "ARG", "Population", "SP.POP.TOTL", 2023, 4.0, "Population"),
+        ],
+        [*OUTPUT_COLUMNS, TOPIC_COLUMN],
+    )
+
+    rows = convert_long_to_indicator_columns(dataframe).orderBy(TOPIC_COLUMN).collect()
+
+    assert convert_long_to_indicator_columns(dataframe).columns == [
+        COUNTRY_NAME_COLUMN,
+        COUNTRY_CODE_COLUMN,
+        "Year",
+        TOPIC_COLUMN,
+        "GDP per capita",
+        "Population",
+    ]
+    assert [
+        (row[TOPIC_COLUMN], row["GDP per capita"], row["Population"])
+        for row in rows
+    ] == [
+        ("Economy", 2.0, None),
+        ("Population", None, 4.0),
+    ]
+
+
 def test_convert_long_to_indicator_columns_rejects_duplicate_output_cells(
     spark: SparkSession,
 ) -> None:
@@ -276,6 +377,31 @@ def test_convert_long_to_year_columns_uses_year_columns(spark: SparkSession) -> 
     ]
 
 
+def test_convert_long_to_year_columns_preserves_topic_rows(spark: SparkSession) -> None:
+    dataframe = spark.createDataFrame(
+        [
+            ("Argentina", "ARG", "GDP per capita", "NY.GDP.PCAP.CD", 2022, 1.0, "Economy"),
+            ("Argentina", "ARG", "GDP per capita", "NY.GDP.PCAP.CD", 2023, 2.0, "Economy"),
+        ],
+        [*OUTPUT_COLUMNS, TOPIC_COLUMN],
+    )
+
+    rows = convert_long_to_year_columns(dataframe).orderBy("Country Code").collect()
+
+    assert convert_long_to_year_columns(dataframe).columns == [
+        COUNTRY_NAME_COLUMN,
+        COUNTRY_CODE_COLUMN,
+        SERIES_NAME_COLUMN,
+        SERIES_CODE_COLUMN,
+        TOPIC_COLUMN,
+        "2022",
+        "2023",
+    ]
+    assert [(row[TOPIC_COLUMN], row["2022"], row["2023"]) for row in rows] == [
+        ("Economy", 1.0, 2.0),
+    ]
+
+
 def test_convert_long_to_year_columns_rejects_duplicate_output_cells(
     spark: SparkSession,
 ) -> None:
@@ -291,7 +417,7 @@ def test_convert_long_to_year_columns_rejects_duplicate_output_cells(
         convert_long_to_year_columns(dataframe)
 
 
-def test_write_topic_csvs_creates_one_csv_file_per_topic(
+def test_write_long_parquet_dataset_creates_topic_joined_dataset(
     spark: SparkSession,
     tmp_path: Path,
 ) -> None:
@@ -319,31 +445,37 @@ def test_write_topic_csvs_creates_one_csv_file_per_topic(
         [*OUTPUT_COLUMNS, TOPIC_COLUMN],
     )
 
-    output_directory = tmp_path / "topics"
-    stale_output = output_directory / "stale_long.csv"
-    output_directory.mkdir()
-    stale_output.write_text("stale\n")
+    output_directory = tmp_path / "world_bank_indicators_long.parquet"
 
-    write_topic_csvs(dataframe, str(output_directory))
+    write_long_parquet_dataset(dataframe, output_directory)
 
-    health_output = output_directory / "health_long.csv"
-    agriculture_output = output_directory / "agriculture_rural_development_long.csv"
-    assert health_output.exists()
-    assert agriculture_output.exists()
-    assert not stale_output.exists()
-    assert sorted(read_csv_rows(health_output), key=lambda row: row["Year"]) == [
+    assert list(output_directory.glob("part-*.parquet"))
+    assert sorted(
+        read_parquet_rows(spark, output_directory),
+        key=lambda row: str(row["Country Code"]),
+    ) == [
         {
             "Country Name": "Afghanistan",
             "Country Code": "AFG",
             "Series Name": "Health indicator",
             "Series Code": "SP.ADO.TFRT",
-            "Year": "2024",
-            "Value": "1.5",
+            "Year": 2024,
+            "Value": 1.5,
+            "Topic": "Health",
+        },
+        {
+            "Country Name": "Zimbabwe",
+            "Country Code": "ZWE",
+            "Series Name": "Agriculture indicator",
+            "Series Code": "NV.AGR.TOTL.ZS",
+            "Year": 2024,
+            "Value": 2.0,
+            "Topic": "Agriculture & Rural Development",
         },
     ]
 
 
-def test_write_topic_indicator_column_csvs_creates_one_csv_file_per_topic(
+def test_write_indicator_wide_parquet_dataset_creates_topic_joined_dataset(
     spark: SparkSession,
     tmp_path: Path,
 ) -> None:
@@ -380,37 +512,46 @@ def test_write_topic_indicator_column_csvs_creates_one_csv_file_per_topic(
         [*OUTPUT_COLUMNS, TOPIC_COLUMN],
     )
 
-    output_directory = tmp_path / "topics"
-    stale_output = output_directory / "stale.csv"
-    output_directory.mkdir()
-    stale_output.write_text("stale\n")
+    output_directory = tmp_path / "world_bank_indicators_indicator_wide.parquet"
 
-    write_topic_indicator_column_csvs(dataframe, str(output_directory))
+    write_indicator_wide_parquet_dataset(dataframe, output_directory)
 
-    health_output = output_directory / "health.csv"
-    agriculture_output = output_directory / "agriculture_rural_development.csv"
-    assert health_output.exists()
-    assert agriculture_output.exists()
-    assert not stale_output.exists()
-    assert sorted(read_csv_rows(health_output), key=lambda row: row["Year"]) == [
+    assert list(output_directory.glob("part-*.parquet"))
+    assert sorted(
+        read_parquet_rows(spark, output_directory),
+        key=lambda row: (str(row["Country Code"]), int(row["Year"]), str(row[TOPIC_COLUMN])),
+    ) == [
         {
             "Country Name": "Afghanistan",
             "Country Code": "AFG",
-            "Year": "2023",
-            "Health indicator": "1.0",
-            "Mortality indicator": "",
+            "Year": 2023,
+            "Topic": "Health",
+            "Agriculture indicator": None,
+            "Health indicator": 1.0,
+            "Mortality indicator": None,
         },
         {
             "Country Name": "Afghanistan",
             "Country Code": "AFG",
-            "Year": "2024",
-            "Health indicator": "",
-            "Mortality indicator": "3.5",
+            "Year": 2024,
+            "Topic": "Health",
+            "Agriculture indicator": None,
+            "Health indicator": None,
+            "Mortality indicator": 3.5,
+        },
+        {
+            "Country Name": "Zimbabwe",
+            "Country Code": "ZWE",
+            "Year": 2024,
+            "Topic": "Agriculture & Rural Development",
+            "Agriculture indicator": 2.0,
+            "Health indicator": None,
+            "Mortality indicator": None,
         },
     ]
 
 
-def test_write_topic_wide_csvs_creates_one_csv_file_per_topic(
+def test_write_year_wide_parquet_dataset_creates_topic_joined_dataset(
     spark: SparkSession,
     tmp_path: Path,
 ) -> None:
@@ -447,41 +588,31 @@ def test_write_topic_wide_csvs_creates_one_csv_file_per_topic(
         [*OUTPUT_COLUMNS, TOPIC_COLUMN],
     )
 
-    output_directory = tmp_path / "topics"
-    stale_output = output_directory / "stale_wide.csv"
-    output_directory.mkdir()
-    stale_output.write_text("stale\n")
+    output_directory = tmp_path / "world_bank_indicators_year_wide.parquet"
 
-    write_topic_wide_csvs(dataframe, str(output_directory))
+    write_year_wide_parquet_dataset(dataframe, output_directory)
 
-    health_output = output_directory / "health_wide.csv"
-    agriculture_output = output_directory / "agriculture_rural_development_wide.csv"
-    assert health_output.exists()
-    assert agriculture_output.exists()
-    assert not stale_output.exists()
-    assert read_csv_rows(health_output) == [
+    assert list(output_directory.glob("part-*.parquet"))
+    assert sorted(
+        read_parquet_rows(spark, output_directory),
+        key=lambda row: str(row["Country Code"]),
+    ) == [
         {
             "Country Name": "Afghanistan",
             "Country Code": "AFG",
             "Series Name": "Health indicator",
             "Series Code": "SP.ADO.TFRT",
-            "2023": "1.0",
-            "2024": "1.5",
+            "Topic": "Health",
+            "2023": 1.0,
+            "2024": 1.5,
+        },
+        {
+            "Country Name": "Zimbabwe",
+            "Country Code": "ZWE",
+            "Series Name": "Agriculture indicator",
+            "Series Code": "NV.AGR.TOTL.ZS",
+            "Topic": "Agriculture & Rural Development",
+            "2023": None,
+            "2024": 2.0,
         },
     ]
-
-
-def test_write_topic_csvs_rejects_topic_output_path_collisions(
-    spark: SparkSession,
-    tmp_path: Path,
-) -> None:
-    dataframe = spark.createDataFrame(
-        [
-            ("Afghanistan", "AFG", "Indicator", "TEST.1", 2024, 1.0, "A&B"),
-            ("Zimbabwe", "ZWE", "Indicator", "TEST.2", 2024, 2.0, "A B"),
-        ],
-        [*OUTPUT_COLUMNS, TOPIC_COLUMN],
-    )
-
-    with pytest.raises(ValueError, match="produce the same output file"):
-        write_topic_csvs(dataframe, str(tmp_path / "topics"))

@@ -82,6 +82,10 @@ OUTPUT_COLUMNS = [
     YEAR_COLUMN,
     VALUE_COLUMN,
 ]
+TOPIC_OUTPUT_COLUMNS = [
+    *OUTPUT_COLUMNS,
+    TOPIC_COLUMN,
+]
 MAPPING_TOPIC_COUNT_COLUMN = "_mapping_topic_count"
 
 
@@ -121,9 +125,33 @@ def require_unique_rows(dataframe: DataFrame, key_columns: Sequence[str], row_na
         raise ValueError(f"Duplicate {row_name} rows found for: {key_column_names}")
 
 
+def get_available_columns(dataframe: DataFrame, columns: Sequence[str]) -> list[str]:
+    return [column_name for column_name in columns if column_name in dataframe.columns]
+
+
+def get_indicator_column_row_columns(dataframe: DataFrame) -> list[str]:
+    return get_available_columns(
+        dataframe,
+        [
+            *INDICATOR_COLUMN_ROW_COLUMNS,
+            TOPIC_COLUMN,
+        ],
+    )
+
+
+def get_year_column_row_columns(dataframe: DataFrame) -> list[str]:
+    return get_available_columns(
+        dataframe,
+        [
+            *YEAR_COLUMN_ROW_COLUMNS,
+            TOPIC_COLUMN,
+        ],
+    )
+
+
 def require_unique_indicator_values(dataframe: DataFrame) -> None:
     indicator_value_columns = [
-        *INDICATOR_COLUMN_ROW_COLUMNS,
+        *get_indicator_column_row_columns(dataframe),
         SERIES_NAME_COLUMN,
     ]
 
@@ -136,7 +164,7 @@ def require_unique_indicator_values(dataframe: DataFrame) -> None:
 
 def require_unique_year_values(dataframe: DataFrame) -> None:
     year_value_columns = [
-        *YEAR_COLUMN_ROW_COLUMNS,
+        *get_year_column_row_columns(dataframe),
         YEAR_COLUMN,
     ]
 
@@ -181,7 +209,11 @@ def add_topics_to_long_data(dataframe: DataFrame, topic_mapping: DataFrame) -> D
         sf.trim(sf.col(SERIES_CODE_COLUMN)),
     )
 
-    return normalized_dataframe.join(mapping_columns, on=SERIES_CODE_COLUMN, how="inner").select(
+    return normalized_dataframe.join(
+        sf.broadcast(mapping_columns),
+        on=SERIES_CODE_COLUMN,
+        how="inner",
+    ).select(
         *OUTPUT_COLUMNS,
         TOPIC_COLUMN,
     )
@@ -190,6 +222,7 @@ def add_topics_to_long_data(dataframe: DataFrame, topic_mapping: DataFrame) -> D
 def convert_long_to_indicator_columns(dataframe: DataFrame) -> DataFrame:
     """Return data with one country-year row and one column per indicator."""
     require_unique_indicator_values(dataframe)
+    row_columns = get_indicator_column_row_columns(dataframe)
 
     series_names = [
         row[SERIES_NAME_COLUMN]
@@ -200,11 +233,11 @@ def convert_long_to_indicator_columns(dataframe: DataFrame) -> DataFrame:
     ]
 
     return (
-        dataframe.groupBy(*INDICATOR_COLUMN_ROW_COLUMNS)
+        dataframe.groupBy(*row_columns)
         .pivot(SERIES_NAME_COLUMN, series_names)
         .agg(sf.first(VALUE_COLUMN))
         .select(
-            *INDICATOR_COLUMN_ROW_COLUMNS,
+            *row_columns,
             *[sf.col(escape_spark_identifier(series_name)) for series_name in series_names],
         )
     )
@@ -213,6 +246,7 @@ def convert_long_to_indicator_columns(dataframe: DataFrame) -> DataFrame:
 def convert_long_to_year_columns(dataframe: DataFrame) -> DataFrame:
     """Return data with one country-indicator row and one column per year."""
     require_unique_year_values(dataframe)
+    row_columns = get_year_column_row_columns(dataframe)
 
     years = [
         row[YEAR_COLUMN]
@@ -220,11 +254,11 @@ def convert_long_to_year_columns(dataframe: DataFrame) -> DataFrame:
     ]
 
     return (
-        dataframe.groupBy(*YEAR_COLUMN_ROW_COLUMNS)
+        dataframe.groupBy(*row_columns)
         .pivot(YEAR_COLUMN, years)
         .agg(sf.first(VALUE_COLUMN))
         .select(
-            *YEAR_COLUMN_ROW_COLUMNS,
+            *row_columns,
             *[sf.col(escape_spark_identifier(str(year))) for year in years],
         )
     )
