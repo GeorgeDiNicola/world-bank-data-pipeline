@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import duckdb
-import kaggle
 
 OUTPUTS = {
     "world_bank_indicators_long.parquet/*.parquet":
@@ -50,6 +49,8 @@ def combine_parquet_files(input_path: str | Path, output_path: str | Path) -> No
 
 
 def upload_dataset_to_kaggle(upload_path: str | Path) -> None:
+    import kaggle
+    
     kaggle.api.authenticate()
     kaggle.api.dataset_create_version(
         folder=str(upload_path),
