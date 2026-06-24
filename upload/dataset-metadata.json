@@ -1,0 +1,34 @@
+{
+    "id": "georgejdinicola/worldbanktest",
+    "title": "World Bank Test",
+    "subtitle": "A collection of global time-series data by country, year, and thematic topic",
+    "description": "## Overview\nThis dataset provides a comprehensive collection of time series data sourced from the [World Bank Open Data Platform](https://data.worldbank.org/), covering a wide range of global indicators from 1960 to the most recently published year. It includes economic, social, environmental, and demographic metrics, making it an ideal resource for researchers, data scientists, and policymakers interested in global development trends, economic forecasting, or socio-economic analysis.\n\n## Tutorials\n- [How to combine the dataset topics together into one large dataset with Python](https://www.kaggle.com/code/georgejdinicola/tutorial-for-merging-world-bank-datasets)\n- [How to visualize the long format data with Python](https://www.kaggle.com/code/georgejdinicola/visualize-long-format-data-tutorial)\n\n## Why this Dataset?\nMy motivation for this project was to curate a high-quality collection of datasets for World Bank indicators organized by topics and structured in multiple time-series formats, making them more accessible for data science projects. Since [the World Bank's Kaggle datasets have not been updated since 2019](https://www.kaggle.com/organizations/theworldbank), I saw an opportunity to provide more current data for the data analysis community.\n\n## Dataset Collection Contents\nThis collection brings together **1,483 World Bank indicators** organized into 21 topic-specific CSV files.\nEach file is structured as a country-year panel in 2 different formats:\n1. **Long Format** - every row represents a unique combination of year (1960-present), ISO-3 country code, indicator name, and indicator value. All long format files end in \"*_long.csv\"\n2. **Wide Format** - every row represents a unique combination of year (1960-present) and ISO-3 country code, while the columns hold the topic's indicators.\n\nThe collection includes datasets with a variety of indicators, such as:\n- **Economic Metrics**: GDP growth (%), GDP per capita, consumer price inflation, merchandise trade, gross capital formation, and more.  \n- **Social Metrics**: School enrollment (primary, secondary, tertiary), infant mortality rate, maternal mortality rate, poverty headcount, and more.  \n- **Environmental Metrics**: Forest area, renewable energy consumption, food production indices, and more.  \n- **Demographic Metrics**: Urban population, life expectancy, net migration, and more.\n\n## Usage\nThis dataset is ideal for a variety of applications, including:\n- Economic forecasting and trend analysis (e.g., GDP growth, inflation).  \n- Socio-economic studies (e.g., education, health, poverty).  \n- Environmental impact analysis (e.g., renewable energy adoption).  \n- Demographic research (e.g., population trends, migration).\n\nTopic datasets can be merged with each other using **year** and **country** code. [This tutorial with notebook code](https://www.kaggle.com/code/georgejdinicola/tutorial-for-merging-world-bank-datasets) can help you get started quickly.\n\n## Collection Methodology\nThe data is collected via a custom software application that discovers and groups high-quality indicators with rules-based logic & artificial intelligence, removes missing values to minimize data size, and transforms the data into different formats, performing ETL for the data from the World Bank API. The result is a clean, up-to-date collection of World Bank indicators in time-series format that is ready for analysis.\n\n## Modifications\nThe original World Bank data has been transformed for ease of use. Missing values for country and indicator combinations have been removed, and no significant transformations have been applied beyond formatting, AI-based categorization, and partitioning data observations into files by their topic.\n\n## Source & Attribution\nThe World Bank: World Development Indicators\n\nThis dataset is publicly available and sourced from the [World Bank Open Data Platform](https://data.worldbank.org/) and is made available under the [Creative Commons Attribution 4.0 International (CC BY 4.0) license](https://creativecommons.org/licenses/by/4.0/). When using this data, please attribute the World Bank as follows:\n\"Data sourced from the World Bank, licensed under CC BY 4.0.\"\nFor more details on the World Bank's terms of use, visit: [https://www.worldbank.org/en/about/legal/terms-of-use-for-datasets](https://www.worldbank.org/en/about/legal/terms-of-use-for-datasets). \n\n## License\nThis dataset is licensed under the [Creative Commons Attribution 4.0 International (CC BY 4.0) license](https://creativecommons.org/licenses/by/4.0/).\n\nFeel free to use this data in Kaggle notebooks, academic research, or policy analysis. If you create a derived dataset or analysis, I encourage you to share it with the Kaggle community.",
+    "keywords": ["Education", "Finance", "Data Science", "Economics", "People and Society", "Science and Technology", "Urban Planning"],
+    "resources": [
+        {
+            "path": "world_bank_indicators_long.parquet",
+            "description": "Long-format World Bank indicator data with one row per country, year, and indicator. Includes topic assignments for each indicator."
+        },
+        {
+            "path": "world_bank_indicators_long.csv",
+            "description": "CSV version of the long-format World Bank indicator data with one row per country, year, and indicator. Includes topic assignments for each indicator."
+        },
+        {
+            "path": "world_bank_indicators_indicator_wide.parquet",
+            "description": "Indicator-wide World Bank data with one row per country, year, and topic, and one column per indicator."
+        },
+        {
+            "path": "world_bank_indicators_indicator_wide.csv",
+            "description": "CSV version of the indicator-wide World Bank data with one row per country, year, and topic, and one column per indicator."
+        },
+        {
+            "path": "world_bank_indicators_year_wide.parquet",
+            "description": "Year-wide World Bank data with one row per country, indicator, and topic, and one column per year."
+        },
+        {
+            "path": "world_bank_indicators_year_wide.csv",
+            "description": "CSV version of the year-wide World Bank data with one row per country, indicator, and topic, and one column per year."
+        }
+    ]
+  }
+  
