@@ -5,6 +5,17 @@ from pathlib import Path
 from pyspark import StorageLevel
 from pyspark.sql import DataFrame, SparkSession
 
+from world_bank_pipeline.config import (
+    API_INDICATOR_OUTPUT_PATH,
+    DEFAULT_SPARK_SQL_SHUFFLE_PARTITIONS,
+    INDICATOR_WIDE_OUTPUT_PATH,
+    LONG_OUTPUT_PATH,
+    MAPPING_OUTPUT_PATH,
+    MAPPING_PATH,
+    SPARK_APP_NAME,
+    SPARK_SQL_SHUFFLE_PARTITIONS_ENV_VAR,
+    YEAR_WIDE_OUTPUT_PATH,
+)
 from world_bank_pipeline.io import (
     read_indicator_topic_mapping,
     read_world_bank_long_parquet,
@@ -19,21 +30,11 @@ from world_bank_pipeline.transform import (
     keep_only_rows_with_values,
 )
 
-API_INDICATOR_OUTPUT_PATH = Path("/data/world_bank_api_indicator_data.parquet")
-MAPPING_PATH = "/mapping/indicator_topic_mapping.csv"
-LONG_OUTPUT_PATH = Path("/output/world_bank_indicators_long.parquet")
-INDICATOR_WIDE_OUTPUT_PATH = Path("/output/world_bank_indicators_indicator_wide.parquet")
-YEAR_WIDE_OUTPUT_PATH = Path("/output/world_bank_indicators_year_wide.parquet")
-MAPPING_OUTPUT_PATH = Path("/output/indicator_topic_mapping.csv")
-SPARK_APP_NAME = "world-bank-data-pipeline"
-SPARK_SQL_SHUFFLE_PARTITIONS_ENV_VAR = "SPARK_SQL_SHUFFLE_PARTITIONS"
-DEFAULT_SPARK_SQL_SHUFFLE_PARTITIONS = 8
-
 
 @dataclass(frozen=True)
 class PipelinePaths:
     api_indicator_output_path: Path = API_INDICATOR_OUTPUT_PATH
-    mapping_path: Path = Path(MAPPING_PATH)
+    mapping_path: Path = MAPPING_PATH
     long_output_path: Path = LONG_OUTPUT_PATH
     indicator_wide_output_path: Path = INDICATOR_WIDE_OUTPUT_PATH
     year_wide_output_path: Path = YEAR_WIDE_OUTPUT_PATH

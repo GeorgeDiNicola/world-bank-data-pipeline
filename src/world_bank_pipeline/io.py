@@ -7,35 +7,23 @@ from pyspark.sql import Column, DataFrame, SparkSession
 from pyspark.sql import functions as sf
 from pyspark.sql.types import IntegerType
 
-from world_bank_pipeline.transform import (
-    COUNTRY_NAME_COLUMN,
+from world_bank_pipeline.config import (
     OUTPUT_COLUMNS,
+    REQUIRED_TOPIC_MAPPING_COLUMNS,
+    REQUIRED_WORLD_BANK_LONG_COLUMNS,
+    REQUIRED_WORLD_BANK_TEXT_COLUMNS,
     SERIES_CODE_COLUMN,
-    SERIES_NAME_COLUMN,
+    TOPIC_MAPPING_COLUMNS,
     TOPIC_OUTPUT_COLUMNS,
     VALUE_COLUMN,
+    YEAR_PATTERN,
     YEAR_COLUMN,
+)
+from world_bank_pipeline.transform import (
     convert_long_to_indicator_columns,
     convert_long_to_year_columns,
     escape_spark_identifier,
 )
-
-YEAR_PATTERN = r"^\d{4}$"
-REQUIRED_WORLD_BANK_LONG_COLUMNS = OUTPUT_COLUMNS
-TOPIC_MAPPING_COLUMNS = [
-    "id",
-    "name",
-    "source_id",
-    "source",
-    "source_organization",
-    "topic",
-]
-REQUIRED_TOPIC_MAPPING_COLUMNS = ["id", "topic"]
-REQUIRED_WORLD_BANK_TEXT_COLUMNS = [
-    COUNTRY_NAME_COLUMN,
-    SERIES_NAME_COLUMN,
-    SERIES_CODE_COLUMN,
-]
 
 PathInput = str | Path
 
