@@ -1,0 +1,10 @@
+FROM apache/spark:4.0.3
+
+USER root
+
+WORKDIR /app
+
+COPY src /app/src
+
+ENV PATH="/opt/spark/bin:${PATH}"
+ENV PYTHONPATH="/app/src"

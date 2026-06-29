@@ -4,7 +4,7 @@ from typing import cast
 import duckdb
 import pytest
 
-import scripts.combine_parquet_files as combine_parquet_files
+import scripts.package_and_publish_data as package_and_publish_data
 
 
 def quote_path(path: Path) -> str:
@@ -68,17 +68,17 @@ def test_combine_parquet_files_combines_the_standard_pipeline_outputs(
     input_directory = tmp_path / "input"
     output_directory = tmp_path / "published"
 
-    for source_glob in combine_parquet_files.OUTPUTS:
+    for source_glob in package_and_publish_data.OUTPUTS:
         source_directory = input_directory / source_glob.removesuffix("/*.parquet")
         write_part_file(source_directory / "part-00000.parquet", [("Argentina", 1)])
         write_part_file(source_directory / "part-00001.parquet", [("Zimbabwe", 2)])
 
-    combine_parquet_files.combine_parquet_files(
+    package_and_publish_data.combine_parquet_files(
         input_path=input_directory,
         output_path=output_directory,
     )
 
-    for target_file in combine_parquet_files.OUTPUTS.values():
+    for target_file in package_and_publish_data.OUTPUTS.values():
         parquet_file = output_directory / target_file
         csv_file = parquet_file.with_suffix(".csv")
 
