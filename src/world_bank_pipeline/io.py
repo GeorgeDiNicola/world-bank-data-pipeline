@@ -22,6 +22,14 @@ from world_bank_pipeline.transform import (
 
 YEAR_PATTERN = r"^\d{4}$"
 REQUIRED_WORLD_BANK_LONG_COLUMNS = OUTPUT_COLUMNS
+TOPIC_MAPPING_COLUMNS = [
+    "id",
+    "name",
+    "source_id",
+    "source",
+    "source_organization",
+    "topic",
+]
 REQUIRED_TOPIC_MAPPING_COLUMNS = ["id", "topic"]
 REQUIRED_WORLD_BANK_TEXT_COLUMNS = [
     COUNTRY_NAME_COLUMN,
@@ -168,6 +176,60 @@ def write_parquet_dataset(dataframe: DataFrame, output_path: PathInput) -> None:
 
         if temporary_output_directory.exists():
             shutil.rmtree(temporary_output_directory)
+
+
+def get_single_csv_part_file(output_directory: Path) -> Path:
+    part_files = sorted(output_directory.glob("part-*.csv"))
+
+    if len(part_files) != 1:
+        raise RuntimeError(
+            f"Expected one CSV part file in {output_directory}, found {len(part_files)}.",
+        )
+
+    return part_files[0]
+
+
+def write_single_csv(dataframe: DataFrame, output_path: PathInput) -> None:
+    output_file = Path(output_path)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    temporary_output_directory = get_temporary_output_directory(output_file, ".tmp")
+    staging_file = get_temporary_output_directory(output_file, ".staging")
+
+    try:
+        (
+            dataframe.coalesce(1)
+            .write.mode("overwrite")
+            .option("header", True)
+            .csv(str(temporary_output_directory))
+        )
+
+        part_file = get_single_csv_part_file(temporary_output_directory)
+        shutil.move(str(part_file), str(staging_file))
+        remove_existing_output(output_file)
+        staging_file.replace(output_file)
+    finally:
+        if staging_file.exists():
+            staging_file.unlink()
+
+        if temporary_output_directory.exists():
+            shutil.rmtree(temporary_output_directory)
+
+
+def write_inner_joined_indicator_topic_mapping_csv(
+    topic_mapping: DataFrame,
+    final_long_dataframe: DataFrame,
+    output_path: PathInput,
+) -> None:
+    require_columns(topic_mapping, TOPIC_MAPPING_COLUMNS)
+    final_indicator_codes = final_long_dataframe.select(
+        sf.col(SERIES_CODE_COLUMN).alias("id"),
+    ).distinct()
+    mapping_dataframe = (
+        topic_mapping.select(*TOPIC_MAPPING_COLUMNS)
+        .join(sf.broadcast(final_indicator_codes), on="id", how="inner")
+        .orderBy("id")
+    )
+    write_single_csv(mapping_dataframe, output_path)
 
 
 def write_long_parquet_dataset(dataframe: DataFrame, output_path: PathInput) -> None:

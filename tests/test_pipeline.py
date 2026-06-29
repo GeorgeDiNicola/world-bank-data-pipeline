@@ -21,6 +21,16 @@ def read_parquet_rows(
     return [row.asDict() for row in spark.read.parquet(str(output_directory)).collect()]
 
 
+def read_csv_rows(
+    spark: SparkSession,
+    output_file: Path,
+) -> list[dict[str, object]]:
+    return [
+        row.asDict()
+        for row in spark.read.option("header", True).csv(str(output_file)).collect()
+    ]
+
+
 def test_main_runs_pipeline_with_supplied_paths(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -31,6 +41,7 @@ def test_main_runs_pipeline_with_supplied_paths(
         long_output_path=tmp_path / "world_bank_indicators_long.parquet",
         indicator_wide_output_path=tmp_path / "world_bank_indicators_indicator_wide.parquet",
         year_wide_output_path=tmp_path / "world_bank_indicators_year_wide.parquet",
+        mapping_output_path=tmp_path / "filtered_indicator_topic_mapping.csv",
     )
     calls: list[PipelinePaths] = []
 
@@ -82,6 +93,7 @@ def test_run_pipeline_writes_filtered_outputs(tmp_path: Path) -> None:
         long_output_path=tmp_path / "world_bank_indicators_long.parquet",
         indicator_wide_output_path=tmp_path / "world_bank_indicators_indicator_wide.parquet",
         year_wide_output_path=tmp_path / "world_bank_indicators_year_wide.parquet",
+        mapping_output_path=tmp_path / "indicator_topic_mapping.csv",
     )
     spark = pipeline.create_spark_session()
 
@@ -107,9 +119,10 @@ def test_run_pipeline_writes_filtered_outputs(tmp_path: Path) -> None:
         spark.stop()
 
     topic_mapping.write_text(
-        "id,topic\n"
-        "SP.ADO.TFRT,Health\n"
-        "NV.AGR.TOTL.ZS,Agriculture & Rural Development\n",
+        "id,name,source_id,source,source_organization,topic\n"
+        "SP.ADO.TFRT,Health indicator,2,World Development Indicators,World Bank,Health\n"
+        "NV.AGR.TOTL.ZS,Agriculture indicator,2,World Development Indicators,World Bank,Agriculture & Rural Development\n"
+        "UNUSED,Unused indicator,2,World Development Indicators,World Bank,Unused\n",
         encoding="utf-8",
     )
 
@@ -120,12 +133,14 @@ def test_run_pipeline_writes_filtered_outputs(tmp_path: Path) -> None:
         long_rows = read_parquet_rows(spark, paths.long_output_path)
         indicator_wide_rows = read_parquet_rows(spark, paths.indicator_wide_output_path)
         year_wide_rows = read_parquet_rows(spark, paths.year_wide_output_path)
+        mapping_rows = read_csv_rows(spark, paths.mapping_output_path)
     finally:
         spark.stop()
 
     assert list(paths.long_output_path.glob("part-*.parquet"))
     assert list(paths.indicator_wide_output_path.glob("part-*.parquet"))
     assert list(paths.year_wide_output_path.glob("part-*.parquet"))
+    assert paths.mapping_output_path.exists()
     assert sorted(long_rows, key=lambda row: str(row["Country Code"])) == [
         {
             "Country Name": "Argentina",
@@ -188,5 +203,23 @@ def test_run_pipeline_writes_filtered_outputs(tmp_path: Path) -> None:
             "Topic": "Agriculture & Rural Development",
             "2023": None,
             "2024": 3.0,
+        },
+    ]
+    assert sorted(mapping_rows, key=lambda row: str(row["id"])) == [
+        {
+            "id": "NV.AGR.TOTL.ZS",
+            "name": "Agriculture indicator",
+            "source_id": "2",
+            "source": "World Development Indicators",
+            "source_organization": "World Bank",
+            "topic": "Agriculture & Rural Development",
+        },
+        {
+            "id": "SP.ADO.TFRT",
+            "name": "Health indicator",
+            "source_id": "2",
+            "source": "World Development Indicators",
+            "source_organization": "World Bank",
+            "topic": "Health",
         },
     ]

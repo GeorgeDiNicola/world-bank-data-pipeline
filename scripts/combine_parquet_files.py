@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 
 import duckdb
@@ -10,6 +11,7 @@ OUTPUTS = {
     "world_bank_indicators_year_wide.parquet/*.parquet":
         "world_bank_indicators_year_wide.parquet",
 }
+INDICATOR_TOPIC_MAPPING_FILE = "indicator_topic_mapping.csv"
 
 
 def combine_parquet_files(input_path: str | Path, output_path: str | Path) -> None:
@@ -50,7 +52,7 @@ def combine_parquet_files(input_path: str | Path, output_path: str | Path) -> No
 
 def upload_dataset_to_kaggle(upload_path: str | Path) -> None:
     import kaggle
-    
+
     kaggle.api.authenticate()
     kaggle.api.dataset_create_version(
         folder=str(upload_path),
@@ -58,8 +60,17 @@ def upload_dataset_to_kaggle(upload_path: str | Path) -> None:
     )
 
 
+def copy_indicator_topic_mapping(input_path: str | Path, output_path: str | Path) -> None:
+    input_file = Path(input_path) / INDICATOR_TOPIC_MAPPING_FILE
+    output_file = Path(output_path) / INDICATOR_TOPIC_MAPPING_FILE
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+
+    shutil.copy2(input_file, output_file)
+
+
 def main() -> None:
     combine_parquet_files(input_path="output", output_path="upload")
+    copy_indicator_topic_mapping(input_path="output", output_path="upload")
     upload_dataset_to_kaggle(upload_path="upload")
 
 

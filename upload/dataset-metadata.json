@@ -6,12 +6,16 @@
     "keywords": ["Education", "Finance", "Data Science", "Economics", "People and Society", "Science and Technology", "Urban Planning"],
     "resources": [
         {
-            "path": "world_bank_indicators_long.parquet",
-            "description": "Long-format World Bank indicator data with one row per country, year, and indicator. Includes topic assignments for each indicator."
+            "path": "indicator_topic_mapping.csv",
+            "description": "Filtered indicator metadata and topic mapping for the indicators included in the published World Bank datasets."
         },
         {
             "path": "world_bank_indicators_long.csv",
             "description": "CSV version of the long-format World Bank indicator data with one row per country, year, and indicator. Includes topic assignments for each indicator."
+        },
+        {
+            "path": "world_bank_indicators_long.parquet",
+            "description": "Long-format World Bank indicator data with one row per country, year, and indicator. Includes topic assignments for each indicator."
         },
         {
             "path": "world_bank_indicators_indicator_wide.parquet",
