@@ -15,6 +15,7 @@ from pyspark.sql.types import (
 from world_bank_pipeline.io import (
     read_world_bank_long_parquet,
     write_indicator_wide_parquet_dataset,
+    write_inner_joined_indicator_topic_mapping_csv,
     write_long_parquet_dataset,
     write_year_wide_parquet_dataset,
 )
@@ -38,6 +39,13 @@ def read_parquet_rows(
     output_directory: Path,
 ) -> list[dict[str, object]]:
     return [row.asDict() for row in spark.read.parquet(str(output_directory)).collect()]
+
+
+def read_csv_rows(spark: SparkSession, output_file: Path) -> list[dict[str, object]]:
+    return [
+        row.asDict()
+        for row in spark.read.option("header", True).csv(str(output_file)).collect()
+    ]
 
 
 @pytest.fixture(scope="session")
@@ -471,6 +479,84 @@ def test_write_long_parquet_dataset_creates_topic_joined_dataset(
             "Year": 2024,
             "Value": 2.0,
             "Topic": "Agriculture & Rural Development",
+        },
+    ]
+
+
+def test_write_inner_joined_indicator_topic_mapping_csv_filters_final_indicators(
+    spark: SparkSession,
+    tmp_path: Path,
+) -> None:
+    topic_mapping = spark.createDataFrame(
+        [
+            (
+                "SP.ADO.TFRT",
+                "Health indicator",
+                "2",
+                "World Development Indicators",
+                "World Bank",
+                "Health",
+            ),
+            (
+                "NV.AGR.TOTL.ZS",
+                "Agriculture indicator",
+                "2",
+                "World Development Indicators",
+                "World Bank",
+                "Agriculture & Rural Development",
+            ),
+            (
+                "UNUSED",
+                "Unused indicator",
+                "2",
+                "World Development Indicators",
+                "World Bank",
+                "Unused",
+            ),
+        ],
+        ["id", "name", "source_id", "source", "source_organization", "topic"],
+    )
+    final_long_dataframe = spark.createDataFrame(
+        [
+            ("Argentina", "ARG", "Health indicator", "SP.ADO.TFRT", 2023, 1.5, "Health"),
+            (
+                "Zimbabwe",
+                "ZWE",
+                "Agriculture indicator",
+                "NV.AGR.TOTL.ZS",
+                2024,
+                3.0,
+                "Agriculture & Rural Development",
+            ),
+        ],
+        [*OUTPUT_COLUMNS, TOPIC_COLUMN],
+    )
+    output_file = tmp_path / "indicator_topic_mapping.csv"
+
+    write_inner_joined_indicator_topic_mapping_csv(
+        topic_mapping,
+        final_long_dataframe,
+        output_file,
+    )
+
+    rows = sorted(read_csv_rows(spark, output_file), key=lambda row: str(row["id"]))
+
+    assert rows == [
+        {
+            "id": "NV.AGR.TOTL.ZS",
+            "name": "Agriculture indicator",
+            "source_id": "2",
+            "source": "World Development Indicators",
+            "source_organization": "World Bank",
+            "topic": "Agriculture & Rural Development",
+        },
+        {
+            "id": "SP.ADO.TFRT",
+            "name": "Health indicator",
+            "source_id": "2",
+            "source": "World Development Indicators",
+            "source_organization": "World Bank",
+            "topic": "Health",
         },
     ]
 

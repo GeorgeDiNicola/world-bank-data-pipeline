@@ -9,6 +9,7 @@ from world_bank_pipeline.io import (
     read_indicator_topic_mapping,
     read_world_bank_long_parquet,
     write_indicator_wide_parquet_dataset,
+    write_inner_joined_indicator_topic_mapping_csv,
     write_long_parquet_dataset,
     write_year_wide_parquet_dataset,
 )
@@ -23,6 +24,7 @@ MAPPING_PATH = "/mapping/indicator_topic_mapping.csv"
 LONG_OUTPUT_PATH = Path("/output/world_bank_indicators_long.parquet")
 INDICATOR_WIDE_OUTPUT_PATH = Path("/output/world_bank_indicators_indicator_wide.parquet")
 YEAR_WIDE_OUTPUT_PATH = Path("/output/world_bank_indicators_year_wide.parquet")
+MAPPING_OUTPUT_PATH = Path("/output/indicator_topic_mapping.csv")
 SPARK_APP_NAME = "world-bank-data-pipeline"
 SPARK_SQL_SHUFFLE_PARTITIONS_ENV_VAR = "SPARK_SQL_SHUFFLE_PARTITIONS"
 DEFAULT_SPARK_SQL_SHUFFLE_PARTITIONS = 8
@@ -35,6 +37,7 @@ class PipelinePaths:
     long_output_path: Path = LONG_OUTPUT_PATH
     indicator_wide_output_path: Path = INDICATOR_WIDE_OUTPUT_PATH
     year_wide_output_path: Path = YEAR_WIDE_OUTPUT_PATH
+    mapping_output_path: Path = MAPPING_OUTPUT_PATH
 
 
 DEFAULT_PIPELINE_PATHS = PipelinePaths()
@@ -87,8 +90,13 @@ def run_pipeline(paths: PipelinePaths = DEFAULT_PIPELINE_PATHS) -> None:
             add_topics_to_long_data(long_dataframe, topic_mapping)
             .persist(StorageLevel.MEMORY_AND_DISK)
         )
-        # The joined data feeds three write actions, so populate the cache once.
+        # The joined data feeds three write actions, populate the cache once
         topic_dataframe.count()
+        write_inner_joined_indicator_topic_mapping_csv(
+            topic_mapping,
+            topic_dataframe,
+            paths.mapping_output_path,
+        )
         write_long_parquet_dataset(topic_dataframe, paths.long_output_path)
         write_indicator_wide_parquet_dataset(topic_dataframe, paths.indicator_wide_output_path)
         write_year_wide_parquet_dataset(topic_dataframe, paths.year_wide_output_path)
