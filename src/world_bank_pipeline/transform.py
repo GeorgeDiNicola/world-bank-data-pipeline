@@ -3,90 +3,21 @@ from collections.abc import Sequence
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as sf
 
-
-WORLD_BANK_COUNTRY_CODES_EXCLUDE: tuple[str, ...] = (
-    "AFE",
-    "AFW",
-    "ARB",
-    "CEB",
-    "CSS",
-    "EAP",
-    "EAR",
-    "EAS",
-    "ECA",
-    "ECS",
-    "EMU",
-    "EUU",
-    "FCS",
-    "HIC",
-    "HPC",
-    "IBD",
-    "IBT",
-    "IDA",
-    "IDB",
-    "IDX",
-    "INX",
-    "LAC",
-    "LCN",
-    "LDC",
-    "LIC",
-    "LMC",
-    "LMY",
-    "LTE",
-    "MEA",
-    "MIC",
-    "MNA",
-    "NAC",
-    "OED",
-    "OSS",
-    "PRE",
-    "PSS",
-    "PST",
-    "SAS",
-    "SSA",
-    "SSF",
-    "SST",
-    "TEA",
-    "TEC",
-    "TLA",
-    "TMN",
-    "TSA",
-    "TSS",
-    "UMC",
-    "WLD",
-)
-COUNTRY_NAME_COLUMN = "Country Name"
-COUNTRY_CODE_COLUMN = "Country Code"
-SERIES_NAME_COLUMN = "Series Name"
-SERIES_CODE_COLUMN = "Series Code"
-VALUE_COLUMN = "Value"
-YEAR_COLUMN = "Year"
-TOPIC_COLUMN = "Topic"
-INDICATOR_COLUMN_ROW_COLUMNS = [
-    COUNTRY_NAME_COLUMN,
+from world_bank_pipeline.config import (
     COUNTRY_CODE_COLUMN,
-    YEAR_COLUMN,
-]
-YEAR_COLUMN_ROW_COLUMNS = [
     COUNTRY_NAME_COLUMN,
-    COUNTRY_CODE_COLUMN,
-    SERIES_NAME_COLUMN,
+    INDICATOR_COLUMN_ROW_COLUMNS,
+    MAPPING_TOPIC_COUNT_COLUMN,
+    OUTPUT_COLUMNS,
     SERIES_CODE_COLUMN,
-]
-
-OUTPUT_COLUMNS = [
-    COUNTRY_NAME_COLUMN,
-    COUNTRY_CODE_COLUMN,
     SERIES_NAME_COLUMN,
-    SERIES_CODE_COLUMN,
-    YEAR_COLUMN,
-    VALUE_COLUMN,
-]
-TOPIC_OUTPUT_COLUMNS = [
-    *OUTPUT_COLUMNS,
     TOPIC_COLUMN,
-]
-MAPPING_TOPIC_COUNT_COLUMN = "_mapping_topic_count"
+    TOPIC_OUTPUT_COLUMNS,
+    VALUE_COLUMN,
+    WORLD_BANK_COUNTRY_CODES_EXCLUDE,
+    YEAR_COLUMN,
+    YEAR_COLUMN_ROW_COLUMNS,
+)
 
 
 def escape_spark_identifier(column_name: str) -> str:
