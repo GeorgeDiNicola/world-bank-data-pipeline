@@ -5,7 +5,7 @@ SPARK_SQL_SHUFFLE_PARTITIONS_ENV_VAR = "SPARK_SQL_SHUFFLE_PARTITIONS"
 DEFAULT_SPARK_SQL_SHUFFLE_PARTITIONS = 8
 
 API_INDICATOR_OUTPUT_PATH = Path("/data/world_bank_api_indicator_data.parquet")
-MAPPING_PATH = Path("/mapping/indicator_topic_mapping.csv")
+MAPPING_PATH = Path("/data/indicator_topic_mapping.csv")
 LONG_OUTPUT_PATH = Path("/output/world_bank_indicators_long.parquet")
 INDICATOR_WIDE_OUTPUT_PATH = Path("/output/world_bank_indicators_indicator_wide.parquet")
 YEAR_WIDE_OUTPUT_PATH = Path("/output/world_bank_indicators_year_wide.parquet")

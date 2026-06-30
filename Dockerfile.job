@@ -1,0 +1,26 @@
+FROM apache/spark:4.0.3
+
+USER root
+
+ARG APP_USER=worldbank
+ARG APP_UID=10001
+ARG APP_GID=10001
+
+WORKDIR /app
+
+RUN groupadd --gid "${APP_GID}" "${APP_USER}" \
+    && useradd \
+        --uid "${APP_UID}" \
+        --gid "${APP_GID}" \
+        --create-home \
+        --shell /usr/sbin/nologin \
+        "${APP_USER}" \
+    && chown "${APP_USER}:${APP_USER}" /app
+
+COPY --chown=${APP_USER}:${APP_USER} src /app/src
+
+ENV PATH="/opt/spark/bin:${PATH}"
+ENV PYTHONPATH="/app/src"
+ENV HOME="/home/${APP_USER}"
+
+USER ${APP_USER}

@@ -1,0 +1,11 @@
+.git
+.pytest_cache
+.venv
+__pycache__
+*.pyc
+.DS_Store
+data
+output
+upload/*
+!upload/dataset-metadata.json
+.spark-work

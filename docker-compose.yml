@@ -1,16 +1,14 @@
 services:
   spark-master:
-    image: apache/spark:4.0.1
+    image: apache/spark:4.0.3
     container_name: spark-master
     environment:
       - PATH=/opt/spark/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       - SPARK_MODE=master
     volumes:
       - ./data:/data
-      - ./mapping:/mapping
-      - ./src:/src
       - ./output:/output
-    working_dir: /src
+    working_dir: /
     ports:
       - "4040:4040"
       - "7077:7077"
@@ -18,16 +16,59 @@ services:
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master --host spark-master
 
   spark-worker:
-    image: apache/spark:4.0.1
+    image: apache/spark:4.0.3
     environment:
       - PATH=/opt/spark/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       - SPARK_MODE=worker
+      - SPARK_WORKER_CORES=${SPARK_WORKER_CORES:-2}
+      - SPARK_WORKER_MEMORY=${SPARK_WORKER_MEMORY:-4g}
     volumes:
       - ./data:/data
-      - ./mapping:/mapping
-      - ./src:/src
       - ./output:/output
-    working_dir: /src
+    working_dir: /
     depends_on:
       - spark-master
-    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    command: >
+      bash -lc "
+        /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker --cores ${SPARK_WORKER_CORES:-2} --memory ${SPARK_WORKER_MEMORY:-4g} --work-dir /tmp/spark-work/$${HOSTNAME} spark://spark-master:7077
+      "
+
+  pipeline-job:
+    image: ${PIPELINE_JOB_IMAGE:-georgedinicola/world-bank-pipeline-job}:${IMAGE_TAG:-latest}
+    environment:
+      - PYTHONPATH=/app/src
+      - SPARK_MASTER_URL=${SPARK_MASTER_URL:-spark://spark-master:7077}
+      - SPARK_SQL_SHUFFLE_PARTITIONS=${SPARK_SQL_SHUFFLE_PARTITIONS:-4}
+      - SPARK_DRIVER_MEMORY=${SPARK_DRIVER_MEMORY:-2g}
+      - SPARK_EXECUTOR_MEMORY=${SPARK_EXECUTOR_MEMORY:-3g}
+      - SPARK_EXECUTOR_CORES=${SPARK_EXECUTOR_CORES:-2}
+    volumes:
+      - ./data:/data
+      - ./output:/output
+    working_dir: /
+    depends_on:
+      - spark-master
+      - spark-worker
+    command: >
+      bash -lc "
+        until timeout 1 bash -c '</dev/tcp/spark-master/7077'; do
+          echo 'Waiting for Spark master...';
+          sleep 2;
+        done;
+        spark-submit --master $${SPARK_MASTER_URL} --driver-memory $${SPARK_DRIVER_MEMORY} --executor-memory $${SPARK_EXECUTOR_MEMORY} --executor-cores $${SPARK_EXECUTOR_CORES} --conf spark.network.timeout=600s --conf spark.executor.heartbeatInterval=60s /app/src/main.py
+      "
+    profiles:
+      - job
+
+  package-job:
+    image: ${PACKAGE_JOB_IMAGE:-georgedinicola/world-bank-package-job}:${IMAGE_TAG:-latest}
+    environment:
+      - KAGGLE_USERNAME=${KAGGLE_USERNAME:-}
+      - KAGGLE_KEY=${KAGGLE_KEY:-}
+    volumes:
+      - ./output:/output
+      - ./upload:/upload
+    working_dir: /
+    command: python /app/scripts/package_and_publish_data.py
+    profiles:
+      - job

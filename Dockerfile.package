@@ -1,0 +1,32 @@
+FROM python:3.12-slim
+
+ARG APP_USER=worldbank
+ARG APP_UID=10001
+ARG APP_GID=10001
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+RUN python -m pip install --upgrade pip \
+    && python -m pip install duckdb==1.5.4 kaggle==2.2.2
+
+RUN groupadd --gid "${APP_GID}" "${APP_USER}" \
+    && useradd \
+        --uid "${APP_UID}" \
+        --gid "${APP_GID}" \
+        --create-home \
+        --shell /usr/sbin/nologin \
+        "${APP_USER}" \
+    && mkdir -p /upload \
+    && chown -R "${APP_USER}:${APP_USER}" /app /upload
+
+COPY --chown=${APP_USER}:${APP_USER} scripts /app/scripts
+COPY --chown=${APP_USER}:${APP_USER} upload /upload
+
+ENV PYTHONPATH="/app/scripts"
+ENV HOME="/home/${APP_USER}"
+
+USER ${APP_USER}
