@@ -8,12 +8,12 @@ BUILDX_BUILDER ?= world-bank-builder
 PIPELINE_JOB_IMAGE ?= $(DOCKERHUB_NAMESPACE)/world-bank-pipeline-job
 PACKAGE_JOB_IMAGE ?= $(DOCKERHUB_NAMESPACE)/world-bank-package-job
 SPARK_MASTER_URL ?= spark://spark-master:7077
-SPARK_SQL_SHUFFLE_PARTITIONS ?= 8
-SPARK_WORKER_CORES ?= 1
-SPARK_WORKER_MEMORY ?= 2g
-SPARK_DRIVER_MEMORY ?= 1g
-SPARK_EXECUTOR_MEMORY ?= 1g
-SPARK_EXECUTOR_CORES ?= 1
+SPARK_SQL_SHUFFLE_PARTITIONS ?= 4
+SPARK_WORKER_CORES ?= 2
+SPARK_WORKER_MEMORY ?= 4g
+SPARK_DRIVER_MEMORY ?= 2g
+SPARK_EXECUTOR_MEMORY ?= 3g
+SPARK_EXECUTOR_CORES ?= 2
 WORKERS := $(if $(filter-out run,$(MAKECMDGOALS)),$(filter-out run,$(MAKECMDGOALS)),1)
 
 .PHONY: install run docker-use-buildx-builder docker-build-images docker-push-images test test-coverage stop

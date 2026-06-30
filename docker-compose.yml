@@ -20,18 +20,17 @@ services:
     environment:
       - PATH=/opt/spark/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       - SPARK_MODE=worker
-      - SPARK_WORKER_CORES=${SPARK_WORKER_CORES:-1}
-      - SPARK_WORKER_MEMORY=${SPARK_WORKER_MEMORY:-2g}
+      - SPARK_WORKER_CORES=${SPARK_WORKER_CORES:-2}
+      - SPARK_WORKER_MEMORY=${SPARK_WORKER_MEMORY:-4g}
     volumes:
       - ./data:/data
       - ./output:/output
-      - ./.spark-work:/spark/work
     working_dir: /
     depends_on:
       - spark-master
     command: >
       bash -lc "
-        /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker --cores ${SPARK_WORKER_CORES:-1} --memory ${SPARK_WORKER_MEMORY:-2g} --work-dir /spark/work/$${HOSTNAME} spark://spark-master:7077
+        /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker --cores ${SPARK_WORKER_CORES:-2} --memory ${SPARK_WORKER_MEMORY:-4g} --work-dir /tmp/spark-work/$${HOSTNAME} spark://spark-master:7077
       "
 
   pipeline-job:
@@ -39,10 +38,10 @@ services:
     environment:
       - PYTHONPATH=/app/src
       - SPARK_MASTER_URL=${SPARK_MASTER_URL:-spark://spark-master:7077}
-      - SPARK_SQL_SHUFFLE_PARTITIONS=${SPARK_SQL_SHUFFLE_PARTITIONS:-8}
-      - SPARK_DRIVER_MEMORY=${SPARK_DRIVER_MEMORY:-1g}
-      - SPARK_EXECUTOR_MEMORY=${SPARK_EXECUTOR_MEMORY:-1g}
-      - SPARK_EXECUTOR_CORES=${SPARK_EXECUTOR_CORES:-1}
+      - SPARK_SQL_SHUFFLE_PARTITIONS=${SPARK_SQL_SHUFFLE_PARTITIONS:-4}
+      - SPARK_DRIVER_MEMORY=${SPARK_DRIVER_MEMORY:-2g}
+      - SPARK_EXECUTOR_MEMORY=${SPARK_EXECUTOR_MEMORY:-3g}
+      - SPARK_EXECUTOR_CORES=${SPARK_EXECUTOR_CORES:-2}
     volumes:
       - ./data:/data
       - ./output:/output
@@ -66,7 +65,6 @@ services:
     environment:
       - KAGGLE_USERNAME=${KAGGLE_USERNAME:-}
       - KAGGLE_KEY=${KAGGLE_KEY:-}
-      - KAGGLE_API_TOKEN=${KAGGLE_API_TOKEN:-}
     volumes:
       - ./output:/output
       - ./upload:/upload
