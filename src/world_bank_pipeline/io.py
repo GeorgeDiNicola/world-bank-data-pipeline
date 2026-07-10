@@ -1,5 +1,4 @@
 import shutil
-from collections.abc import Sequence
 from pathlib import Path
 from uuid import uuid4
 
@@ -10,79 +9,25 @@ from pyspark.sql.types import IntegerType
 from world_bank_pipeline.config import (
     OUTPUT_COLUMNS,
     REQUIRED_TOPIC_MAPPING_COLUMNS,
-    REQUIRED_WORLD_BANK_LONG_COLUMNS,
-    REQUIRED_WORLD_BANK_TEXT_COLUMNS,
     SERIES_CODE_COLUMN,
     TOPIC_MAPPING_COLUMNS,
     TOPIC_OUTPUT_COLUMNS,
     VALUE_COLUMN,
-    YEAR_PATTERN,
     YEAR_COLUMN,
 )
 from world_bank_pipeline.transform import (
     convert_long_to_indicator_columns,
     convert_long_to_year_columns,
-    escape_spark_identifier,
+)
+from world_bank_pipeline.validation import (
+    get_trimmed_column_text,
+    get_try_cast_expression,
+    require_columns,
+    validate_normalized_world_bank_long_data,
+    validate_raw_world_bank_long_data,
 )
 
 PathInput = str | Path
-
-
-def require_columns(dataframe: DataFrame, required_columns: Sequence[str]) -> None:
-    missing_columns = [
-        column_name for column_name in required_columns if column_name not in dataframe.columns
-    ]
-
-    if missing_columns:
-        missing_column_names = ", ".join(missing_columns)
-        raise ValueError(f"Input data is missing required columns: {missing_column_names}")
-
-
-def require_no_rows(dataframe: DataFrame, error_message: str) -> None:
-    if dataframe.limit(1).count() > 0:
-        raise ValueError(error_message)
-
-
-def get_trimmed_column_text(column_name: str) -> Column:
-    return sf.trim(sf.coalesce(sf.col(column_name).cast("string"), sf.lit("")))
-
-
-def get_try_cast_expression(column_name: str, target_type: str) -> Column:
-    return sf.expr(
-        f"try_cast(trim(cast({escape_spark_identifier(column_name)} as string)) "
-        f"as {target_type})",
-    )
-
-
-def validate_world_bank_long_data(dataframe: DataFrame) -> None:
-    require_columns(dataframe, REQUIRED_WORLD_BANK_LONG_COLUMNS)
-
-    required_text_filters = [
-        get_trimmed_column_text(column_name) == ""
-        for column_name in REQUIRED_WORLD_BANK_TEXT_COLUMNS
-    ]
-    missing_required_text_filter = required_text_filters[0]
-
-    for next_filter in required_text_filters[1:]:
-        missing_required_text_filter = missing_required_text_filter | next_filter
-
-    year_text = get_trimmed_column_text(YEAR_COLUMN)
-    value_text = get_trimmed_column_text(VALUE_COLUMN)
-    year_as_int = get_try_cast_expression(YEAR_COLUMN, "int")
-    value_as_double = get_try_cast_expression(VALUE_COLUMN, "double")
-
-    require_no_rows(
-        dataframe.filter(missing_required_text_filter),
-        "World Bank data contains rows with missing country or series identifiers.",
-    )
-    require_no_rows(
-        dataframe.filter(~year_text.rlike(YEAR_PATTERN) | year_as_int.isNull()),
-        "World Bank data contains rows with missing or invalid years.",
-    )
-    require_no_rows(
-        dataframe.filter((value_text != "") & value_as_double.isNull()),
-        "World Bank data contains non-numeric values.",
-    )
 
 
 def trim_text_column(column_name: str) -> Column:
@@ -112,9 +57,11 @@ def select_world_bank_long_columns(dataframe: DataFrame) -> DataFrame:
 
 def read_world_bank_long_parquet(spark: SparkSession, input_path: PathInput) -> DataFrame:
     dataframe = spark.read.parquet(str(input_path))
-    validate_world_bank_long_data(dataframe)
+    raw_row_count = validate_raw_world_bank_long_data(dataframe)
+    normalized_dataframe = select_world_bank_long_columns(dataframe)
+    validate_normalized_world_bank_long_data(normalized_dataframe, raw_row_count)
 
-    return select_world_bank_long_columns(dataframe)
+    return normalized_dataframe
 
 
 def read_indicator_topic_mapping(spark: SparkSession, mapping_path: PathInput) -> DataFrame:

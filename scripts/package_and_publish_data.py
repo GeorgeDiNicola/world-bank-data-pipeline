@@ -1,4 +1,5 @@
 import shutil
+import time
 from pathlib import Path
 
 import duckdb
@@ -68,10 +69,34 @@ def copy_indicator_topic_mapping(input_path: str | Path, output_path: str | Path
     shutil.copy2(input_file, output_file)
 
 
-def main() -> None:
+def pipeline() -> None:
     combine_parquet_files(input_path="output", output_path="upload")
     copy_indicator_topic_mapping(input_path="output", output_path="upload")
     upload_dataset_to_kaggle(upload_path="upload")
+
+
+def format_elapsed_time(elapsed_seconds: float) -> str:
+    total_seconds = int(round(elapsed_seconds))
+    minutes, seconds = divmod(total_seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+
+    if hours:
+        return f"{hours}h {minutes}m {seconds}s"
+
+    if minutes:
+        return f"{minutes}m {seconds}s"
+
+    return f"{seconds}s"
+
+
+def main() -> None:
+    time_started_at = time.perf_counter()
+
+    try:
+        pipeline()
+    finally:
+        elapsed_time = format_elapsed_time(time.perf_counter() - time_started_at)
+        print(f"Packaging job elapsed time: {elapsed_time}", flush=True)
 
 
 if __name__ == "__main__":
