@@ -7,13 +7,6 @@ A scalable PySpark data pipeline designed to process raw World Bank indicators. 
 
 Although the current dataset can be processed locally, Spark is used to model a scalable distributed ETL architecture and to support larger indicator/topic expansions over time.
 
-## Data
-The pipeline writes 3 Parquet and 3 CSV datasets to Kaggle.com:
-
-- `world_bank_indicators_long.(parquet|csv)` - one row per country, year, indicator, and topic.
-- `world_bank_indicators_indicator_wide.(parquet|csv)` - one row per country, year, and topic, with **indicators as columns**.
-- `world_bank_indicators_year_wide.(parquet|csv)` - one row per country, indicator, and topic, with **years as columns**.
-
 ## Data Pipeline Execution
 
 The pipeline runs through Docker Compose and executes the following stages:
@@ -40,6 +33,13 @@ To override the number of Spark SQL shuffle partitions, set `SPARK_SQL_SHUFFLE_P
 ```sh
 SPARK_SQL_SHUFFLE_PARTITIONS=8 ./run_pipeline.sh
 ```
+
+## Data
+The pipeline writes 3 Parquet and 3 CSV datasets to Kaggle.com:
+
+- `world_bank_indicators_long.(parquet|csv)` - one row per country, year, indicator, and topic.
+- `world_bank_indicators_indicator_wide.(parquet|csv)` - one row per country, year, and topic, with **indicators as columns**.
+- `world_bank_indicators_year_wide.(parquet|csv)` - one row per country, indicator, and topic, with **years as columns**.
 
 ## Data Validation
 The PySpark transformation job validates the data at each major stage so bad records fail fast with clear error messages instead of silently producing incorrect datasets. The validation checks include:
