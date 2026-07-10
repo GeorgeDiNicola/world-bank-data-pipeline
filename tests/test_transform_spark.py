@@ -4,13 +4,6 @@ from pathlib import Path
 import pytest
 
 from pyspark.sql import SparkSession
-from pyspark.sql.types import (
-    DoubleType,
-    IntegerType,
-    StringType,
-    StructField,
-    StructType,
-)
 
 from world_bank_pipeline.io import (
     read_world_bank_long_parquet,
@@ -129,113 +122,6 @@ def test_read_world_bank_long_parquet_reads_api_output_as_long_dataframe(
     ]
 
 
-def test_read_world_bank_long_parquet_rejects_missing_required_columns(
-    spark: SparkSession,
-    tmp_path: Path,
-) -> None:
-    input_path = tmp_path / "world_bank_api_indicator_data.parquet"
-    spark.createDataFrame(
-        [("SP.ADO.TFRT", "Adolescent fertility rate", "ARG", "Argentina", 2023)],
-        [
-            SERIES_CODE_COLUMN,
-            SERIES_NAME_COLUMN,
-            COUNTRY_CODE_COLUMN,
-            COUNTRY_NAME_COLUMN,
-            "Year",
-        ],
-    ).write.parquet(str(input_path))
-
-    with pytest.raises(ValueError, match="missing required columns: Value"):
-        read_world_bank_long_parquet(spark, input_path)
-
-
-def test_read_world_bank_long_parquet_rejects_invalid_years(
-    spark: SparkSession,
-    tmp_path: Path,
-) -> None:
-    input_path = tmp_path / "world_bank_api_indicator_data.parquet"
-    schema = StructType(
-        [
-            StructField(SERIES_CODE_COLUMN, StringType()),
-            StructField(SERIES_NAME_COLUMN, StringType()),
-            StructField(COUNTRY_CODE_COLUMN, StringType()),
-            StructField(COUNTRY_NAME_COLUMN, StringType()),
-            StructField("Year", StringType()),
-            StructField("Value", DoubleType()),
-        ],
-    )
-    spark.createDataFrame(
-        [("SP.ADO.TFRT", "Adolescent fertility rate", "ARG", "Argentina", "not-a-year", 26.414)],
-        schema,
-    ).write.parquet(str(input_path))
-
-    with pytest.raises(ValueError, match="invalid years"):
-        read_world_bank_long_parquet(spark, input_path)
-
-
-def test_read_world_bank_long_parquet_rejects_non_numeric_values(
-    spark: SparkSession,
-    tmp_path: Path,
-) -> None:
-    input_path = tmp_path / "world_bank_api_indicator_data.parquet"
-    schema = StructType(
-        [
-            StructField(SERIES_CODE_COLUMN, StringType()),
-            StructField(SERIES_NAME_COLUMN, StringType()),
-            StructField(COUNTRY_CODE_COLUMN, StringType()),
-            StructField(COUNTRY_NAME_COLUMN, StringType()),
-            StructField("Year", IntegerType()),
-            StructField("Value", StringType()),
-        ],
-    )
-    spark.createDataFrame(
-        [("SP.ADO.TFRT", "Adolescent fertility rate", "ARG", "Argentina", 2023, "not-a-number")],
-        schema,
-    ).write.parquet(str(input_path))
-
-    with pytest.raises(ValueError, match="non-numeric values"):
-        read_world_bank_long_parquet(spark, input_path)
-
-
-def test_read_world_bank_long_parquet_allows_null_values(
-    spark: SparkSession,
-    tmp_path: Path,
-) -> None:
-    input_path = tmp_path / "world_bank_api_indicator_data.parquet"
-    schema = StructType(
-        [
-            StructField(SERIES_CODE_COLUMN, StringType()),
-            StructField(SERIES_NAME_COLUMN, StringType()),
-            StructField(COUNTRY_CODE_COLUMN, StringType()),
-            StructField(COUNTRY_NAME_COLUMN, StringType()),
-            StructField("Year", IntegerType()),
-            StructField("Value", DoubleType()),
-        ],
-    )
-    spark.createDataFrame(
-        [("SP.ADO.TFRT", "Adolescent fertility rate", "ARG", "Argentina", 2023, None)],
-        schema,
-    ).write.parquet(str(input_path))
-
-    rows = read_world_bank_long_parquet(spark, input_path).collect()
-
-    assert [(row["Year"], row["Value"]) for row in rows] == [(2023, None)]
-
-
-def test_read_world_bank_long_parquet_rejects_missing_text_values(
-    spark: SparkSession,
-    tmp_path: Path,
-) -> None:
-    input_path = tmp_path / "world_bank_api_indicator_data.parquet"
-    spark.createDataFrame(
-        [("Argentina", "ARG", "Adolescent fertility rate", "", 2023, 26.414)],
-        OUTPUT_COLUMNS,
-    ).write.parquet(str(input_path))
-
-    with pytest.raises(ValueError, match="missing country or series identifiers"):
-        read_world_bank_long_parquet(spark, input_path)
-
-
 def test_add_topics_to_long_data_maps_indicators_to_topics(spark: SparkSession) -> None:
     dataframe = spark.createDataFrame(
         [
@@ -344,21 +230,6 @@ def test_convert_long_to_indicator_columns_preserves_topic_rows(
     ]
 
 
-def test_convert_long_to_indicator_columns_rejects_duplicate_output_cells(
-    spark: SparkSession,
-) -> None:
-    dataframe = spark.createDataFrame(
-        [
-            ("Argentina", "ARG", "GDP per capita", "NY.GDP.PCAP.CD", 2023, 2.0),
-            ("Argentina", "ARG", "GDP per capita", "NY.GDP.PCAP.CD", 2023, 3.0),
-        ],
-        OUTPUT_COLUMNS,
-    )
-
-    with pytest.raises(ValueError, match="Duplicate country-year-indicator rows"):
-        convert_long_to_indicator_columns(dataframe)
-
-
 def test_convert_long_to_year_columns_uses_year_columns(spark: SparkSession) -> None:
     dataframe = spark.createDataFrame(
         [
@@ -408,21 +279,6 @@ def test_convert_long_to_year_columns_preserves_topic_rows(spark: SparkSession) 
     assert [(row[TOPIC_COLUMN], row["2022"], row["2023"]) for row in rows] == [
         ("Economy", 1.0, 2.0),
     ]
-
-
-def test_convert_long_to_year_columns_rejects_duplicate_output_cells(
-    spark: SparkSession,
-) -> None:
-    dataframe = spark.createDataFrame(
-        [
-            ("Argentina", "ARG", "GDP per capita", "NY.GDP.PCAP.CD", 2023, 2.0),
-            ("Argentina", "ARG", "GDP per capita", "NY.GDP.PCAP.CD", 2023, 3.0),
-        ],
-        OUTPUT_COLUMNS,
-    )
-
-    with pytest.raises(ValueError, match="Duplicate country-indicator-year rows"):
-        convert_long_to_year_columns(dataframe)
 
 
 def test_write_long_parquet_dataset_creates_topic_joined_dataset(

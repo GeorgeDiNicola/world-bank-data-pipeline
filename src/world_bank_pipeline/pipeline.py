@@ -29,6 +29,10 @@ from world_bank_pipeline.transform import (
     keep_only_countries_and_territories,
     keep_only_rows_with_values,
 )
+from world_bank_pipeline.validation import (
+    validate_clean_world_bank_long_data,
+    validate_topic_joined_long_data,
+)
 
 
 @dataclass(frozen=True)
@@ -87,12 +91,13 @@ def run_pipeline(paths: PipelinePaths = DEFAULT_PIPELINE_PATHS) -> None:
         long_dataframe = keep_only_countries_and_territories(
             keep_only_rows_with_values(long_dataframe),
         )
+        validate_clean_world_bank_long_data(long_dataframe)
         topic_dataframe = (
             add_topics_to_long_data(long_dataframe, topic_mapping)
             .persist(StorageLevel.MEMORY_AND_DISK)
         )
-        # The joined data feeds three write actions, populate the cache once
-        topic_dataframe.count()
+        # The joined data feeds three write actions, validate once while filling the cache.
+        validate_topic_joined_long_data(topic_dataframe)
         write_inner_joined_indicator_topic_mapping_csv(
             topic_mapping,
             topic_dataframe,
